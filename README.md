@@ -1,11 +1,12 @@
-# Docker Java Builder
+# Bookmap Indicator Builder
 
-A Docker-based build system for compiling Java projects into JAR files. Supports single files, multi-file projects, Maven, and Gradle.
+A Docker-based build system for compiling Bookmap indicators and Java projects into JAR files. Supports single files, multi-file projects, Maven, and Gradle.
 
 ## Prerequisites
 
 - Docker installed and running
 - Java source files or project directory
+- For Bookmap indicators: Bookmap API JAR files (from your Bookmap installation)
 
 ## Supported Project Types
 
@@ -19,14 +20,28 @@ A Docker-based build system for compiling Java projects into JAR files. Supports
 ### Windows
 
 ```bash
-build.bat <path-to-file-or-directory> [main-class-name]
+build.bat <path-to-file-or-directory> [main-class-name] [classpath-jar]
 ```
 
 ### Linux/Mac
 
 ```bash
 chmod +x build.sh
-./build.sh <path-to-file-or-directory> [main-class-name]
+./build.sh <path-to-file-or-directory> [main-class-name] [classpath-jar]
+```
+
+## Rebuilding Docker Images
+
+To pull the latest base images and clean up old builds:
+
+### Windows
+```bash
+rebuild-image.bat
+```
+
+### Linux/Mac
+```bash
+./rebuild-image.sh
 ```
 
 ## Examples
@@ -42,6 +57,22 @@ build.bat Example.java
 ```
 
 Output: `Example.jar`
+
+### Bookmap Indicator with Dependencies
+
+For Bookmap indicators that require the API:
+
+```bash
+# Windows - Using api-core.jar from Bookmap installation
+build.bat MyIndicator.java MyIndicator "C:\Program Files\Bookmap\lib\api-core.jar"
+
+# Linux/Mac
+./build.sh MyIndicator.java MyIndicator "/opt/bookmap/lib/api-core.jar"
+```
+
+**Note**: You need the Bookmap API JARs from your Bookmap installation directory:
+- Windows: `C:\Program Files\Bookmap\lib\`
+- Look for: `api-core-*.jar` and `api-simplified-*.jar`
 
 ### Single File with Explicit Main Class
 
@@ -105,13 +136,14 @@ The script automatically detects the Gradle project and uses `gradle clean build
 
 1. Detects the project type (single file, multi-file, Maven, or Gradle)
 2. Creates a Docker container with the appropriate build environment:
-   - OpenJDK 17 for single/multi-file projects
-   - Maven 3.9 with OpenJDK 17 for Maven projects
+   - Eclipse Temurin JDK 8 for single/multi-file projects
+   - Maven 3.9 with Eclipse Temurin 8 for Maven projects
    - Gradle 8.5 with JDK 17 for Gradle projects
-3. Compiles the project inside the container
-4. Packages it into a JAR file
-5. Copies the JAR to your current directory
-6. Cleans up the container and temporary files
+3. Copies your code and any dependency JARs into the container
+4. Compiles the project inside the container (with classpath if provided)
+5. Packages it into a JAR file
+6. Copies the JAR to your current directory
+7. Cleans up the container and temporary files
 
 ## Running the JAR
 
@@ -155,3 +187,84 @@ The build system uses different Dockerfiles for each project type:
 **Docker permission errors**: Ensure Docker is running and you have permission to run Docker commands
 
 **JAR not found**: Check the build output for errors during compilation
+
+**"package does not exist" errors for Bookmap indicators**:
+- Make sure you're providing the correct API JAR file from your Bookmap installation
+- The JAR should contain `velox.api.layer1.*` packages
+- Try using `api-core-*.jar` from `C:\Program Files\Bookmap\lib\`
+
+**"openjdk:8-jdk-slim: not found" error**:
+- Run `rebuild-image.bat` (Windows) or `rebuild-image.sh` (Linux/Mac) to update to the newer Eclipse Temurin base images
+
+## Building for Bookmap
+
+### Quick Start (Automatic API Detection)
+
+The easiest way to build Bookmap indicators is with the automatic wrapper scripts:
+
+**Windows:**
+```bash
+build-bookmap.bat YourIndicator.java
+```
+
+**Linux/Mac:**
+```bash
+chmod +x build-bookmap.sh
+./build-bookmap.sh YourIndicator.java
+```
+
+This will:
+1. Automatically find your Bookmap installation
+2. Locate the API JAR files
+3. Build your indicator with the correct dependencies
+
+**With explicit main class:**
+```bash
+# Windows
+build-bookmap.bat YourIndicator.java YourIndicatorClassName
+
+# Linux/Mac
+./build-bookmap.sh YourIndicator.java YourIndicatorClassName
+```
+
+### Manual Method (If Auto-Detection Fails)
+
+If the automatic detection doesn't work, you can manually specify the API JAR:
+
+**Step 1: Find Bookmap API JARs**
+
+Use the finder script:
+
+**Windows:**
+```bash
+find-bookmap-api.bat
+```
+
+**Linux/Mac:**
+```bash
+./find-bookmap-api.sh
+```
+
+**Manual search locations:**
+- Windows: `C:\Program Files\Bookmap\lib\`
+- Linux: `/opt/bookmap/lib/` or `~/bookmap/lib/`
+- Mac: `/Applications/Bookmap.app/Contents/lib/`
+
+Look for: `api-core-*.jar`
+
+**Step 2: Build with manual classpath**
+
+```bash
+# Windows
+build.bat YourIndicator.java YourIndicator "C:\Program Files\Bookmap\lib\api-core-7.1.0.35.jar"
+
+# Linux/Mac
+./build.sh YourIndicator.java YourIndicator "/opt/bookmap/lib/api-core-7.1.0.35.jar"
+```
+
+### Installing in Bookmap
+
+After building:
+1. Copy the generated JAR to Bookmap's workspace folder
+2. Restart Bookmap
+3. Your indicator will appear in the indicators list

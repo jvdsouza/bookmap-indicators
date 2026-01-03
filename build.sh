@@ -4,14 +4,15 @@
 # Supports: single files, multi-file projects, Maven projects, and Gradle projects
 
 if [ $# -eq 0 ]; then
-    echo "Usage: ./build.sh <path-to-file-or-directory> [main-class-name]"
+    echo "Usage: ./build.sh <path-to-file-or-directory> [main-class-name] [classpath-jar]"
     echo ""
     echo "Examples:"
-    echo "  ./build.sh MyApp.java                    - Single Java file"
-    echo "  ./build.sh MyApp.java com.example.MyApp  - Single file with explicit main class"
-    echo "  ./build.sh ./my-project                  - Multi-file Java project"
-    echo "  ./build.sh ./my-maven-project            - Maven project (has pom.xml)"
-    echo "  ./build.sh ./my-gradle-project           - Gradle project (has build.gradle)"
+    echo "  ./build.sh MyApp.java                              - Single Java file"
+    echo "  ./build.sh MyApp.java com.example.MyApp            - Single file with explicit main class"
+    echo "  ./build.sh MyApp.java com.example.MyApp lib.jar    - With external JAR dependency"
+    echo "  ./build.sh ./my-project                            - Multi-file Java project"
+    echo "  ./build.sh ./my-maven-project                      - Maven project (has pom.xml)"
+    echo "  ./build.sh ./my-gradle-project                     - Gradle project (has build.gradle)"
     exit 1
 fi
 
@@ -19,6 +20,7 @@ INPUT_PATH=$1
 CONTAINER_NAME="java-build-$(date +%s)"
 PROJECT_TYPE="unknown"
 OUTPUT_JAR="output.jar"
+CLASSPATH_JAR=$3
 
 # Determine if input is a file or directory
 if [ -d "$INPUT_PATH" ]; then
@@ -72,15 +74,32 @@ build_single_file() {
     BUILD_DIR=$(mktemp -d)
     cp "$JAVA_FILE" "$BUILD_DIR/"
 
-    cat > "$BUILD_DIR/Dockerfile" << EOF
+    if [ -n "$CLASSPATH_JAR" ]; then
+        echo "Using classpath: $CLASSPATH_JAR"
+        CLASSPATH_FILENAME=$(basename "$CLASSPATH_JAR")
+        cp "$CLASSPATH_JAR" "$BUILD_DIR/"
+
+        cat > "$BUILD_DIR/Dockerfile" << EOF
 FROM eclipse-temurin:8-jdk
 WORKDIR /build
-COPY $JAVA_FILENAME .
-RUN javac $JAVA_FILENAME
+COPY ["$JAVA_FILENAME", "."]
+COPY ["$CLASSPATH_FILENAME", "."]
+RUN javac -cp "$CLASSPATH_FILENAME" "$JAVA_FILENAME"
 RUN echo "Main-Class: $MAIN_CLASS" > manifest.txt
 RUN jar cfm output.jar manifest.txt *.class
 CMD ["echo", "Build complete"]
 EOF
+    else
+        cat > "$BUILD_DIR/Dockerfile" << EOF
+FROM eclipse-temurin:8-jdk
+WORKDIR /build
+COPY ["$JAVA_FILENAME", "."]
+RUN javac "$JAVA_FILENAME"
+RUN echo "Main-Class: $MAIN_CLASS" > manifest.txt
+RUN jar cfm output.jar manifest.txt *.class
+CMD ["echo", "Build complete"]
+EOF
+    fi
 
     docker build -t java-compiler-temp "$BUILD_DIR"
     docker create --name "$CONTAINER_NAME" java-compiler-temp

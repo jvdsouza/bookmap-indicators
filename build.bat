@@ -4,14 +4,15 @@ REM Script to compile Java projects using Docker and output a JAR file (Windows 
 REM Supports: single files, multi-file projects, Maven projects, and Gradle projects
 
 if "%~1"=="" (
-    echo Usage: build.bat ^<path-to-file-or-directory^> [main-class-name]
+    echo Usage: build.bat ^<path-to-file-or-directory^> [main-class-name] [classpath-jar]
     echo.
     echo Examples:
-    echo   build.bat MyApp.java                    - Single Java file
-    echo   build.bat MyApp.java com.example.MyApp  - Single file with explicit main class
-    echo   build.bat ./my-project                  - Multi-file Java project
-    echo   build.bat ./my-maven-project            - Maven project ^(has pom.xml^)
-    echo   build.bat ./my-gradle-project           - Gradle project ^(has build.gradle^)
+    echo   build.bat MyApp.java                              - Single Java file
+    echo   build.bat MyApp.java com.example.MyApp            - Single file with explicit main class
+    echo   build.bat MyApp.java com.example.MyApp lib.jar    - With external JAR dependency
+    echo   build.bat ./my-project                            - Multi-file Java project
+    echo   build.bat ./my-maven-project                      - Maven project ^(has pom.xml^)
+    echo   build.bat ./my-gradle-project                     - Gradle project ^(has build.gradle^)
     exit /b 1
 )
 
@@ -19,6 +20,7 @@ set INPUT_PATH=%~1
 set CONTAINER_NAME=java-build-%RANDOM%
 set PROJECT_TYPE=unknown
 set OUTPUT_JAR=output.jar
+set CLASSPATH_JAR=%~3
 
 REM Determine if input is a file or directory
 if exist "%INPUT_PATH%\*" (
@@ -103,15 +105,31 @@ exit /b 0
 
     copy "%JAVA_FILE%" "%BUILD_DIR%\"
 
-    (
-    echo FROM openjdk:8-jdk-slim
-    echo WORKDIR /build
-    echo COPY %JAVA_FILENAME% .
-    echo RUN javac %JAVA_FILENAME%
-    echo RUN echo "Main-Class: %MAIN_CLASS%" ^> manifest.txt
-    echo RUN jar cfm output.jar manifest.txt *.class
-    echo CMD ["echo", "Build complete"]
-    ) > "%BUILD_DIR%\Dockerfile"
+    if not "%CLASSPATH_JAR%"=="" (
+        echo Using classpath: %CLASSPATH_JAR%
+        for %%F in ("%CLASSPATH_JAR%") do set CLASSPATH_FILENAME=%%~nxF
+        copy "%CLASSPATH_JAR%" "%BUILD_DIR%\"
+        (
+        echo FROM eclipse-temurin:8-jdk
+        echo WORKDIR /build
+        echo COPY ["%JAVA_FILENAME%", "."]
+        echo COPY ["!CLASSPATH_FILENAME!", "."]
+        echo RUN javac -cp "!CLASSPATH_FILENAME!" "%JAVA_FILENAME%"
+        echo RUN echo "Main-Class: %MAIN_CLASS%" ^> manifest.txt
+        echo RUN jar cfm output.jar manifest.txt *.class
+        echo CMD ["echo", "Build complete"]
+        ) > "%BUILD_DIR%\Dockerfile"
+    ) else (
+        (
+        echo FROM eclipse-temurin:8-jdk
+        echo WORKDIR /build
+        echo COPY ["%JAVA_FILENAME%", "."]
+        echo RUN javac "%JAVA_FILENAME%"
+        echo RUN echo "Main-Class: %MAIN_CLASS%" ^> manifest.txt
+        echo RUN jar cfm output.jar manifest.txt *.class
+        echo CMD ["echo", "Build complete"]
+        ) > "%BUILD_DIR%\Dockerfile"
+    )
 
     docker build -t java-compiler-temp "%BUILD_DIR%"
     docker create --name %CONTAINER_NAME% java-compiler-temp

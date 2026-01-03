@@ -103,24 +103,42 @@ if "!IMAGES_MISSING!"=="1" (
 echo Searching for Bookmap API...
 
 set BOOKMAP_FOUND=0
-set API_JAR=""
+set API_JAR=
+set BOOKMAP_DIR=
 
 REM Check common installation paths
 if exist "C:\Program Files\Bookmap\lib" (
-    set BOOKMAP_DIR=C:\Program Files\Bookmap\lib
+    set "BOOKMAP_DIR=C:\Program Files\Bookmap\lib"
     set BOOKMAP_FOUND=1
 )
 
 if exist "C:\Program Files (x86)\Bookmap\lib" (
-    set BOOKMAP_DIR=C:\Program Files ^(x86^)\Bookmap\lib
+    set "BOOKMAP_DIR=C:\Program Files (x86)\Bookmap\lib"
+    set BOOKMAP_FOUND=1
+)
+
+REM Check user profile and other common locations
+if exist "%USERPROFILE%\Bookmap\lib" (
+    set "BOOKMAP_DIR=%USERPROFILE%\Bookmap\lib"
+    set BOOKMAP_FOUND=1
+)
+
+if exist "C:\Bookmap\lib" (
+    set "BOOKMAP_DIR=C:\Bookmap\lib"
     set BOOKMAP_FOUND=1
 )
 
 if "!BOOKMAP_FOUND!"=="0" (
     echo ERROR: Bookmap installation not found!
     echo.
+    echo Searched locations:
+    echo   - C:\Program Files\Bookmap\lib
+    echo   - C:\Program Files ^(x86^)\Bookmap\lib
+    echo   - %USERPROFILE%\Bookmap\lib
+    echo   - C:\Bookmap\lib
+    echo.
     echo Please install Bookmap or use build.bat with manual classpath:
-    echo   build.bat %JAVA_FILE% %MAIN_CLASS% "path\to\api-core.jar"
+    echo   build.bat "!JAVA_FILE!" "!MAIN_CLASS!" "path\to\api-core.jar"
     echo.
     echo Or run find-bookmap-api.bat to locate your installation.
     exit /b 1
@@ -135,14 +153,23 @@ for /f "delims=" %%f in ('dir /b "!BOOKMAP_DIR!\api-core*.jar" 2^>nul') do (
 )
 
 :found_jar
-if "!API_JAR!"=="" (
+if not defined API_JAR (
     echo ERROR: api-core*.jar not found in !BOOKMAP_DIR!
     echo.
     echo Available JAR files:
     dir /b "!BOOKMAP_DIR!\*.jar"
     echo.
     echo Please specify the JAR manually:
-    echo   build.bat %JAVA_FILE% %MAIN_CLASS% "!BOOKMAP_DIR!\your-api.jar"
+    echo   build.bat "!JAVA_FILE!" "!MAIN_CLASS!" "!BOOKMAP_DIR!\your-api.jar"
+    exit /b 1
+)
+
+REM Verify the JAR file exists
+if not exist "!API_JAR!" (
+    echo ERROR: API JAR file not found: !API_JAR!
+    echo.
+    echo Please check your Bookmap installation or specify the JAR manually:
+    echo   build.bat "!JAVA_FILE!" "!MAIN_CLASS!" "path\to\api-core.jar"
     exit /b 1
 )
 

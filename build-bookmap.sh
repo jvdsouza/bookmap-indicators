@@ -106,19 +106,33 @@ if [ -d "/opt/bookmap/lib" ]; then
 elif [ -d "$HOME/bookmap/lib" ]; then
     BOOKMAP_DIR="$HOME/bookmap/lib"
     BOOKMAP_FOUND=1
+elif [ -d "$HOME/Bookmap/lib" ]; then
+    BOOKMAP_DIR="$HOME/Bookmap/lib"
+    BOOKMAP_FOUND=1
 elif [ -d "/usr/local/bookmap/lib" ]; then
     BOOKMAP_DIR="/usr/local/bookmap/lib"
     BOOKMAP_FOUND=1
 elif [ -d "/Applications/Bookmap.app/Contents/lib" ]; then
     BOOKMAP_DIR="/Applications/Bookmap.app/Contents/lib"
     BOOKMAP_FOUND=1
+elif [ -d "/c/Bookmap/lib" ]; then
+    BOOKMAP_DIR="/c/Bookmap/lib"
+    BOOKMAP_FOUND=1
 fi
 
 if [ "$BOOKMAP_FOUND" -eq 0 ]; then
     echo "ERROR: Bookmap installation not found!"
     echo ""
+    echo "Searched locations:"
+    echo "  - /opt/bookmap/lib"
+    echo "  - $HOME/bookmap/lib"
+    echo "  - $HOME/Bookmap/lib"
+    echo "  - /usr/local/bookmap/lib"
+    echo "  - /Applications/Bookmap.app/Contents/lib (Mac)"
+    echo "  - /c/Bookmap/lib (Windows via Git Bash)"
+    echo ""
     echo "Please install Bookmap or use build.sh with manual classpath:"
-    echo "  ./build.sh $JAVA_FILE $MAIN_CLASS \"path/to/api-core.jar\""
+    echo "  ./build.sh \"$JAVA_FILE\" \"$MAIN_CLASS\" \"path/to/api-core.jar\""
     echo ""
     echo "Or run ./find-bookmap-api.sh to locate your installation."
     exit 1
@@ -136,7 +150,16 @@ if [ -z "$API_JAR" ]; then
     ls -1 "$BOOKMAP_DIR"/*.jar
     echo ""
     echo "Please specify the JAR manually:"
-    echo "  ./build.sh $JAVA_FILE $MAIN_CLASS \"$BOOKMAP_DIR/your-api.jar\""
+    echo "  ./build.sh \"$JAVA_FILE\" \"$MAIN_CLASS\" \"$BOOKMAP_DIR/your-api.jar\""
+    exit 1
+fi
+
+# Verify the JAR file exists
+if [ ! -f "$API_JAR" ]; then
+    echo "ERROR: API JAR file not found: $API_JAR"
+    echo ""
+    echo "Please check your Bookmap installation or specify the JAR manually:"
+    echo "  ./build.sh \"$JAVA_FILE\" \"$MAIN_CLASS\" \"path/to/api-core.jar\""
     exit 1
 fi
 

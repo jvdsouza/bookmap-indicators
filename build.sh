@@ -73,7 +73,7 @@ build_single_file() {
     cp "$JAVA_FILE" "$BUILD_DIR/"
 
     cat > "$BUILD_DIR/Dockerfile" << EOF
-FROM openjdk:8-jdk-slim
+FROM eclipse-temurin:8-jdk
 WORKDIR /build
 COPY $JAVA_FILENAME .
 RUN javac $JAVA_FILENAME

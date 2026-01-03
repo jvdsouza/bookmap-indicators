@@ -1,0 +1,14 @@
+FROM gradle:8.5-jdk17
+
+WORKDIR /build
+
+# Copy the entire project
+COPY . .
+
+# Build the project
+RUN gradle clean build -x test
+
+# Find and copy the JAR file to a known location
+RUN find build/libs -name "*.jar" -not -name "*-plain.jar" -not -name "*-sources.jar" -exec cp {} /build/output.jar \;
+
+CMD ["echo", "Gradle build complete"]

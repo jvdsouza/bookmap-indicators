@@ -1,0 +1,19 @@
+FROM openjdk:8-jdk-slim
+
+WORKDIR /build
+
+# Copy the entire project directory
+COPY . .
+
+# Find all Java files and compile them
+RUN find . -name "*.java" -type f > sources.txt && \
+    javac -d ./classes @sources.txt
+
+# Create manifest with main class
+ARG MAIN_CLASS
+RUN echo "Main-Class: ${MAIN_CLASS}" > manifest.txt
+
+# Create JAR from all compiled classes
+RUN cd classes && jar cfm /build/output.jar /build/manifest.txt $(find . -name "*.class" | sed 's|^\./||')
+
+CMD ["echo", "Multi-file build complete"]

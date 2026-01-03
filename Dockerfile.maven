@@ -1,0 +1,14 @@
+FROM maven:3.9-eclipse-temurin-8
+
+WORKDIR /build
+
+# Copy the entire project
+COPY . .
+
+# Build the project
+RUN mvn clean package -DskipTests
+
+# Find and copy the JAR file to a known location
+RUN find target -name "*.jar" -not -name "*-sources.jar" -not -name "*-javadoc.jar" -exec cp {} /build/output.jar \;
+
+CMD ["echo", "Maven build complete"]

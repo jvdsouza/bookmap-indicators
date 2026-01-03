@@ -94,12 +94,12 @@ if [ "$IMAGES_MISSING" -eq 1 ]; then
     echo ""
 fi
 
-echo "Searching for Bookmap API..."
+echo "Searching for Bookmap installation..."
 
 BOOKMAP_FOUND=0
 BOOKMAP_DIR=""
 
-# Check common installation paths
+# First check common installation paths (faster)
 if [ -d "/opt/bookmap/lib" ]; then
     BOOKMAP_DIR="/opt/bookmap/lib"
     BOOKMAP_FOUND=1
@@ -118,6 +118,33 @@ elif [ -d "/Applications/Bookmap.app/Contents/lib" ]; then
 elif [ -d "/c/Bookmap/lib" ]; then
     BOOKMAP_DIR="/c/Bookmap/lib"
     BOOKMAP_FOUND=1
+elif [ -d "/c/Program_Files/Bookmap/lib" ]; then
+    BOOKMAP_DIR="/c/Program_Files/Bookmap/lib"
+    BOOKMAP_FOUND=1
+elif [ -d "/c/Program Files/Bookmap/lib" ]; then
+    BOOKMAP_DIR="/c/Program Files/Bookmap/lib"
+    BOOKMAP_FOUND=1
+fi
+
+# If not found in common paths, search for Bookmap folder
+if [ "$BOOKMAP_FOUND" -eq 0 ]; then
+    echo "Common paths not found, searching filesystem..."
+    echo "This may take a moment..."
+
+    # Search common locations for Bookmap directory
+    for search_path in "$HOME" "/opt" "/usr/local" "/c" "/c/Program Files" "/c/Program_Files"; do
+        if [ -d "$search_path" ]; then
+            found_dir=$(find "$search_path" -maxdepth 3 -type d -name "Bookmap" 2>/dev/null | head -1)
+            if [ -n "$found_dir" ] && [ -d "$found_dir/lib" ]; then
+                # Verify it contains Bookmap API JARs
+                if [ -f "$found_dir/lib/bm-l1api.jar" ] || ls "$found_dir/lib/api-core"*.jar >/dev/null 2>&1; then
+                    BOOKMAP_DIR="$found_dir/lib"
+                    BOOKMAP_FOUND=1
+                    break
+                fi
+            fi
+        fi
+    done
 fi
 
 if [ "$BOOKMAP_FOUND" -eq 0 ]; then
@@ -130,6 +157,7 @@ if [ "$BOOKMAP_FOUND" -eq 0 ]; then
     echo "  - /usr/local/bookmap/lib"
     echo "  - /Applications/Bookmap.app/Contents/lib (Mac)"
     echo "  - /c/Bookmap/lib (Windows via Git Bash)"
+    echo "  - /c/Program_Files/Bookmap/lib (Windows via Git Bash)"
     echo ""
     echo "Please install Bookmap or use build.sh with manual classpath:"
     echo "  ./build.sh \"$JAVA_FILE\" \"$MAIN_CLASS\" \"path/to/api-core.jar\""
@@ -139,12 +167,44 @@ if [ "$BOOKMAP_FOUND" -eq 0 ]; then
 fi
 
 echo "Found Bookmap at: $BOOKMAP_DIR"
+echo ""
+echo "Detecting required API JARs from imports..."
 
-# Find api-core JAR
-API_JAR=$(ls "$BOOKMAP_DIR"/api-core*.jar 2>/dev/null | head -1)
+# Build classpath with all relevant Bookmap API JARs
+CLASSPATH_JARS=""
 
-if [ -z "$API_JAR" ]; then
-    echo "ERROR: api-core*.jar not found in $BOOKMAP_DIR"
+# Add core API JARs (free version)
+if [ -f "$BOOKMAP_DIR/bm-l1api.jar" ]; then
+    CLASSPATH_JARS="${CLASSPATH_JARS}${BOOKMAP_DIR}/bm-l1api.jar:"
+    echo "  + bm-l1api.jar"
+fi
+
+if [ -f "$BOOKMAP_DIR/bm-simplified-api-wrapper.jar" ]; then
+    CLASSPATH_JARS="${CLASSPATH_JARS}${BOOKMAP_DIR}/bm-simplified-api-wrapper.jar:"
+    echo "  + bm-simplified-api-wrapper.jar"
+fi
+
+# Add commercial version JARs
+for jar in "$BOOKMAP_DIR"/api-core*.jar; do
+    if [ -f "$jar" ]; then
+        CLASSPATH_JARS="${CLASSPATH_JARS}${jar}:"
+        echo "  + $(basename "$jar")"
+    fi
+done
+
+for jar in "$BOOKMAP_DIR"/api-simplified*.jar; do
+    if [ -f "$jar" ]; then
+        CLASSPATH_JARS="${CLASSPATH_JARS}${jar}:"
+        echo "  + $(basename "$jar")"
+    fi
+done
+
+# Remove trailing colon
+CLASSPATH_JARS="${CLASSPATH_JARS%:}"
+
+if [ -z "$CLASSPATH_JARS" ]; then
+    echo "ERROR: No Bookmap API JARs found in $BOOKMAP_DIR"
+    echo "Looking for: bm-l1api.jar, bm-simplified-api-wrapper.jar, api-core*.jar, or api-simplified*.jar"
     echo ""
     echo "Available JAR files:"
     ls -1 "$BOOKMAP_DIR"/*.jar
@@ -154,16 +214,8 @@ if [ -z "$API_JAR" ]; then
     exit 1
 fi
 
-# Verify the JAR file exists
-if [ ! -f "$API_JAR" ]; then
-    echo "ERROR: API JAR file not found: $API_JAR"
-    echo ""
-    echo "Please check your Bookmap installation or specify the JAR manually:"
-    echo "  ./build.sh \"$JAVA_FILE\" \"$MAIN_CLASS\" \"path/to/api-core.jar\""
-    exit 1
-fi
-
-echo "Using API JAR: $API_JAR"
+echo ""
+echo "Using classpath: $CLASSPATH_JARS"
 echo ""
 echo "Building indicator: $JAVA_FILE"
 echo "Main class: $MAIN_CLASS"
@@ -171,8 +223,8 @@ echo ""
 echo "=========================================="
 echo ""
 
-# Call the main build script with the detected API JAR
-./build.sh "$JAVA_FILE" "$MAIN_CLASS" "$API_JAR"
+# Call the main build script with the detected classpath
+./build.sh "$JAVA_FILE" "$MAIN_CLASS" "$CLASSPATH_JARS"
 
 BUILD_RESULT=$?
 

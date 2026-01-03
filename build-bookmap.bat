@@ -100,39 +100,71 @@ if "!IMAGES_MISSING!"=="1" (
     echo.
 )
 
-echo Searching for Bookmap API...
+echo Searching for Bookmap installation...
 
 set BOOKMAP_FOUND=0
 set API_JAR=
 set BOOKMAP_DIR=
 
-REM Check common installation paths
+REM First check common installation paths (faster)
 if exist "C:\Program Files\Bookmap\lib" (
     set "BOOKMAP_DIR=C:\Program Files\Bookmap\lib"
     set BOOKMAP_FOUND=1
+    goto :bookmap_found
+)
+
+if exist "C:\Program_Files\Bookmap\lib" (
+    set "BOOKMAP_DIR=C:\Program_Files\Bookmap\lib"
+    set BOOKMAP_FOUND=1
+    goto :bookmap_found
 )
 
 if exist "C:\Program Files (x86)\Bookmap\lib" (
     set "BOOKMAP_DIR=C:\Program Files (x86)\Bookmap\lib"
     set BOOKMAP_FOUND=1
+    goto :bookmap_found
 )
 
-REM Check user profile and other common locations
 if exist "%USERPROFILE%\Bookmap\lib" (
     set "BOOKMAP_DIR=%USERPROFILE%\Bookmap\lib"
     set BOOKMAP_FOUND=1
+    goto :bookmap_found
 )
 
 if exist "C:\Bookmap\lib" (
     set "BOOKMAP_DIR=C:\Bookmap\lib"
     set BOOKMAP_FOUND=1
+    goto :bookmap_found
 )
+
+REM If not found in common paths, search for Bookmap folder
+if "!BOOKMAP_FOUND!"=="0" (
+    echo Common paths not found, searching filesystem...
+    echo This may take a moment...
+
+    REM Search C:\ drive for Bookmap\lib containing bm-l1api.jar or api-core*.jar
+    for /f "delims=" %%d in ('dir /s /b /ad "C:\*Bookmap" 2^>nul') do (
+        if exist "%%d\lib\bm-l1api.jar" (
+            set "BOOKMAP_DIR=%%d\lib"
+            set BOOKMAP_FOUND=1
+            goto :bookmap_found
+        )
+        if exist "%%d\lib\api-core*.jar" (
+            set "BOOKMAP_DIR=%%d\lib"
+            set BOOKMAP_FOUND=1
+            goto :bookmap_found
+        )
+    )
+)
+
+:bookmap_found
 
 if "!BOOKMAP_FOUND!"=="0" (
     echo ERROR: Bookmap installation not found!
     echo.
     echo Searched locations:
     echo   - C:\Program Files\Bookmap\lib
+    echo   - C:\Program_Files\Bookmap\lib
     echo   - C:\Program Files ^(x86^)\Bookmap\lib
     echo   - %USERPROFILE%\Bookmap\lib
     echo   - C:\Bookmap\lib
@@ -145,16 +177,40 @@ if "!BOOKMAP_FOUND!"=="0" (
 )
 
 echo Found Bookmap at: !BOOKMAP_DIR!
+echo.
+echo Detecting required API JARs from imports...
 
-REM Find api-core JAR
-for /f "delims=" %%f in ('dir /b "!BOOKMAP_DIR!\api-core*.jar" 2^>nul') do (
-    set API_JAR=!BOOKMAP_DIR!\%%f
-    goto :found_jar
+REM Build classpath with all relevant Bookmap API JARs
+set CLASSPATH_JARS=
+
+REM Add core API JARs (try both naming conventions)
+if exist "!BOOKMAP_DIR!\bm-l1api.jar" (
+    set CLASSPATH_JARS=!CLASSPATH_JARS!!BOOKMAP_DIR!\bm-l1api.jar;
+    echo   + bm-l1api.jar
 )
 
-:found_jar
-if not defined API_JAR (
-    echo ERROR: api-core*.jar not found in !BOOKMAP_DIR!
+if exist "!BOOKMAP_DIR!\bm-simplified-api-wrapper.jar" (
+    set CLASSPATH_JARS=!CLASSPATH_JARS!!BOOKMAP_DIR!\bm-simplified-api-wrapper.jar;
+    echo   + bm-simplified-api-wrapper.jar
+)
+
+REM For commercial version
+for /f "delims=" %%f in ('dir /b "!BOOKMAP_DIR!\api-core*.jar" 2^>nul') do (
+    set CLASSPATH_JARS=!CLASSPATH_JARS!!BOOKMAP_DIR!\%%f;
+    echo   + %%f
+)
+
+for /f "delims=" %%f in ('dir /b "!BOOKMAP_DIR!\api-simplified*.jar" 2^>nul') do (
+    set CLASSPATH_JARS=!CLASSPATH_JARS!!BOOKMAP_DIR!\%%f;
+    echo   + %%f
+)
+
+REM Remove trailing semicolon
+if defined CLASSPATH_JARS set CLASSPATH_JARS=!CLASSPATH_JARS:~0,-1!
+
+if not defined CLASSPATH_JARS (
+    echo ERROR: No Bookmap API JARs found in !BOOKMAP_DIR!
+    echo Looking for: bm-l1api.jar, bm-simplified-api-wrapper.jar, api-core*.jar, or api-simplified*.jar
     echo.
     echo Available JAR files:
     dir /b "!BOOKMAP_DIR!\*.jar"
@@ -164,16 +220,8 @@ if not defined API_JAR (
     exit /b 1
 )
 
-REM Verify the JAR file exists
-if not exist "!API_JAR!" (
-    echo ERROR: API JAR file not found: !API_JAR!
-    echo.
-    echo Please check your Bookmap installation or specify the JAR manually:
-    echo   build.bat "!JAVA_FILE!" "!MAIN_CLASS!" "path\to\api-core.jar"
-    exit /b 1
-)
-
-echo Using API JAR: !API_JAR!
+echo.
+echo Using classpath: !CLASSPATH_JARS!
 echo.
 echo Building indicator: %JAVA_FILE%
 echo Main class: %MAIN_CLASS%
@@ -181,8 +229,8 @@ echo.
 echo ==========================================
 echo.
 
-REM Call the main build script with the detected API JAR
-call build.bat "%JAVA_FILE%" "%MAIN_CLASS%" "!API_JAR!"
+REM Call the main build script with the detected classpath
+call build.bat "%JAVA_FILE%" "%MAIN_CLASS%" "!CLASSPATH_JARS!"
 
 set BUILD_RESULT=%ERRORLEVEL%
 
